@@ -46,6 +46,7 @@ class Bot(irc.bot.SingleServerIRCBot):
         self.lasttime = time.time() - 10 * 60
         self.lastreddit = time.time() - 10 * 60
         self.lastyt = time.time() - 1 * 60
+        self.lastwhois = time.time() - 1 * 60
         
         self.lastmeow = time.time() - 10 * 60 * 60
 
@@ -91,7 +92,7 @@ class Bot(irc.bot.SingleServerIRCBot):
         if len(message) <= 1 or message[0] != "!":
             return
     
-        cmd = message[1:]
+        cmd = message.split()[0][1:]
 
         if cmd == "streams" and not self.fafbot_online() and time.time() - self.lasttime > 10 * 60 and time.time() - self.lastyt > 1 * 60 and time.time() - self.lastreddit > 1 * 60:
             self.log("streams requested by %s" % nick, "info")
@@ -143,6 +144,26 @@ class Bot(irc.bot.SingleServerIRCBot):
             self.lastmeow = time.time()
             c.action(self.chan, "meow-meow http://youtu.be/SbyZDq76T74")
             self.log("meow by %s" % nick, "info")
+        elif cmd == "whois" and len(message.split()) == 2 and time.time() - self.lastwhois > 1 * 60:
+            url = "http://app.faforever.com/faf/userName.php"
+            _faflogin = message.split()[1]
+            if not re.match("^[\w_-]*$", _faflogin):
+                return
+            _html = urllib2.urlopen(url, "name=%s" % _faflogin).read()
+            self.log("whois by %s" % nick, "info")
+            _names = re.findall("<tr><td>([\w_-]*)</td><td>" , _html)
+            if len(_names) == 0:
+                if _html.find("didn't change his name") != -1:
+                    return
+                else:
+                    _usedby = re.findall("<br /><b>([\w_-]*)</b>", _html)
+                    if len(_usedby) > 0:
+                        self.lastwhois = time.time()
+                        c.action(self.chan, "%s was used by %s before" % (_faflogin, ", ".join(_usedby)))
+            else:
+                _prev_names = _names[-4:-1]
+                self.lastwhois = time.time()
+                c.action(self.chan, "%s was %s%s before" % (_faflogin, ", ".join(reversed(_prev_names)), ", .. (%s more)" % str(len(_names) - len(_prev_names)) if len(_names) - len(_prev_names) > 0 else "" ))
 
     def fafbot_online(self):
         for chan_name, chan_obj in self.channels.items():
